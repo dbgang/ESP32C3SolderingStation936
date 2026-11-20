@@ -12,10 +12,10 @@
 // HIGH = 光耦截止
 #define IR_TRIGGER_LEVEL LOW
 
-extern volatile bool needBeep;
+extern volatile int beepStatus;  //0 切换模式  1 到达温度 或到达第二模式
 extern volatile bool isInserted;
 extern volatile unsigned long IRInTime;  //上次操作时间  millis()
-extern volatile uint IRInTimes;          // 插入次数
+extern volatile bool hasUsed;            // 插入次数
 // 任务句柄
 TaskHandle_t IrSensorTaskHandle = NULL;
 
@@ -51,15 +51,15 @@ void irSensorTaskCode(void* pvParameters) {
       lastIrTriggered = irTriggered;
 
       if (irTriggered) {
-        needBeep = true;
+        beepStatus = 0;
         isInserted = false;
+        hasUsed = true;
         print("[IR] 烙铁取下 - Infrared beam restored");
         // TODO：在这里执行唤醒或禁止休眠操作
       } else {
-        needBeep = true; 
+        beepStatus = 0;
         isInserted = true;
         IRInTime = millis();
-        IRInTimes++;
         print("[IR] 烙铁放回 - Infrared beam interrupted");
         // TODO：在这里执行允许休眠操作
       }

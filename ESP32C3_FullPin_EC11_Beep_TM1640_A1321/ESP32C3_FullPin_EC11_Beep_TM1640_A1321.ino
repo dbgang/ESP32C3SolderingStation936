@@ -43,11 +43,12 @@ volatile unsigned long setPwmTime = 0;  // 宣告變數，務必用 unsigned lon
 volatile SettingMode curSettingMode = NORMAL;  //EC 11 设置模式
 volatile bool isNeedSave = false;              //需要保存
 volatile unsigned long lastOperTime = 0;       //上次操作时间  millis()
-volatile bool needBeep = true;
-volatile bool isInserted;         //【IR】是否休眠
-volatile unsigned long IRInTime;  //【IR】 插入时间
-volatile uint IRInTimes = 0;      // 计数
-
+volatile int beepStatus = 0;
+volatile bool isInserted;             //【IR】是否休眠
+volatile unsigned long IRInTime = 0;  //【IR】 插入时间
+volatile bool hasUsed = false;        // 计数
+float temp_min = 0;
+float temp_max = 600;
 //保存数据
 SaveData needSave;
 SaveData saved;
@@ -112,7 +113,7 @@ void changeMainDis(float value, SettingMode mode, DisplayMode* dismode) {
       sub_number = saved.WeldingTemp;
       sub_str = floatToStringWithPrefix(sub_number, saved.isCoreTemp ? "C" : "H");
       needSave.WeldingTemp += value;
-      if (needSave.WeldingTemp < 0) {
+      if (needSave.WeldingTemp < temp_min) {
         needSave.WeldingTemp -= value;
       }
       main_number = needSave.WeldingTemp;
@@ -124,8 +125,12 @@ void changeMainDis(float value, SettingMode mode, DisplayMode* dismode) {
       sub_number = saved.WeldingTemp;
       sub_str = floatToStringWithPrefix(sub_number, saved.isCoreTemp ? "C" : "H");
       needSave.WeldingTemp += value;
-      if (needSave.WeldingTemp < 0) {
+      //不低于 0  不大于 600
+      if (needSave.WeldingTemp < temp_min || needSave.WeldingTemp > temp_max) {
         needSave.WeldingTemp -= value;
+      }
+      if (needSave.WeldingTemp < needSave.lowTemp) {
+        needSave.lowTemp = needSave.WeldingTemp;  // 低于低温 调整低温
       }
       main_number = needSave.WeldingTemp;
       main_str = floatToStringWithPrefix(main_number);
@@ -135,8 +140,12 @@ void changeMainDis(float value, SettingMode mode, DisplayMode* dismode) {
       sub_number = saved.lowTemp;
       sub_str = floatToStringWithPrefix(sub_number, "L");
       needSave.lowTemp += value;
-      if (needSave.lowTemp < 0) {
+      //不小于 0 并且 不大于 WeldingTemp
+      if (needSave.lowTemp < 0 || needSave.WeldingTemp > temp_max) {
         needSave.lowTemp -= value;
+      }
+      if (needSave.WeldingTemp < needSave.lowTemp) {
+        needSave.WeldingTemp = needSave.lowTemp;  //超过高温  调整高温
       }
       main_number = needSave.lowTemp;
       main_str = floatToStringWithPrefix(main_number);
@@ -188,18 +197,18 @@ void handleEC11Event(EC11Event event, float value, SettingMode mode) {
       print("主程序收到：双击 ");
       changeMainDis(0, mode, &dismode);
       break;
-    case EVENT_LONG:
+    case EVENT_LONG:  //低温设置
       print("主程序收到：中长按");
       changeMainDis(0, mode, &dismode);
       break;
-    case EVENT_SUPER_LONG:  //切换 显示模式
+    case EVENT_SUPER_LONG:  //切换 显示模式 芯温度或头温度
       print("主程序收到：超长按 ");
       isNeedSave = false;
       needSave.isCoreTemp = !needSave.isCoreTemp;
       if (needSave.isCoreTemp) {
         needSave.WeldingTemp += needSave.tipOffset;
       } else {
-        needSave.WeldingTemp -= needSave.tipOffset;
+        needSave.WeldingTemp = max(0.0f, needSave.WeldingTemp - needSave.tipOffset);  //不得小于 0
       }
       saveSettings();
       dismode = DIS_NORMAL;
@@ -252,29 +261,29 @@ void setup() {
 }
 //设置显示数据 和播放 音效  模式切换
 WorkMode lastMode = Mode_None;
+
 void loop() {
   // systemMonitor.update();
   if (current.ErrCode != "") {
     //  print("A0");
     playBeepById(10);  //B_REACHED
 
-  } else {
-    //加热模式 升温到 目标温度  模式切换  首次 加热到 稳定温度后
-    if (current.workMode == WELDING && needBeep && current.heateMode == PID && current.currentTemp >= current.targetTemp) {
-      needBeep = false;
+  } else { 
+    if (current.workMode == WELDING) {
+       if (beepStatus == 0 && lastMode != current.workMode) {  //B_REACHED 切模式 告警
+        beepStatus++;
+        playBeepById(8);
+      } else if ((beepStatus == 1  ) && current.heateMode == PID && current.currentTemp >= current.targetTemp) {  //【 到达目的温度提示】
+        beepStatus++;
+        playBeepById(8);
+      }
       lastMode = WELDING;
-      //print("A1");
-      playBeepById(8);  //B_REACHED
-    } else if (current.workMode == WELDING && lastMode != current.workMode) {
-      //   print("A2");
-      lastMode = WELDING;
-      playBeepById(11);  // B_TONE_HIGH
-    } else if (current.workMode == LOWTEMP && (lastMode != current.workMode || fabs(current.currentTemp - current.targetTemp) < 2)) {
-      //  print("A3");
+    } else if (beepStatus == 0 && current.workMode == LOWTEMP && lastMode != current.workMode) { //切低温模式 
+      beepStatus++;
       lastMode = LOWTEMP;
       playBeepById(12);  //B_TONE_HIGH_2
-    } else if (current.workMode == SLEEP && lastMode != current.workMode) {
-      //   print("A4");
+    } else if (beepStatus == 1 && current.workMode == SLEEP && lastMode != current.workMode) { //切 睡眠模式
+      beepStatus++;
       lastMode = SLEEP;
       playBeepById(14);  //B_TONE_HIGH_2
     }

@@ -55,7 +55,7 @@ extern SystemData current;                 //【PWM 记录】当前所有的状�
 extern volatile SettingMode curSettingMode;
 extern volatile bool isInserted;         //【外部】是否休眠
 extern volatile unsigned long IRInTime;  //上次操作时间  millis()
-extern volatile uint IRInTimes;          // 插入次数
+extern volatile bool  hasUsed;          //  是否用过
 extern String ErrCode;                   //不能 volatile
 extern SaveData saved;
 // --- FreeRTOS 任务句柄 ---
@@ -81,15 +81,16 @@ void getCurrent() {
   //【1.2】系统模式
   current.settingMode = curSettingMode;
   //【1.3】工作模式  // 当前没有睡眠请求，始终处于焊接模式
-  if (isInserted) {
+  //非第一次 切插入
+  if ( isInserted && hasUsed ) {
     // 已经进入睡眠流程，根据红外保持时间切换低温保持和完全休眠
     if (current.IRKeepInTime < sleepTime) {
-      current.workMode = LOWTEMP;
+      current.workMode = LOWTEMP; 
     } else {
       current.workMode = SLEEP;
     }
-  } else {
-    current.workMode = WELDING;
+  } else {  //第一次 或 未插入
+      current.workMode = WELDING;  
   }
   // current.heateMode = FULL;      //加热模式 PWM Control 中赋值
   //【1.3】目标温度设定
@@ -136,9 +137,9 @@ void setPWM(int pwm) {
   if (current.StopHeate) {  // 最高优先级  最高优先级
     ledcWrite(PWM_A1321, 0);
   } else {
-    if (current.pwm == 0||current.pwm != pwm) {  //停止的一定执行上次的和这次 的不一致也要执行
-      ledcWrite(PWM_A1321,pwm);
-    } else { 
+    if (current.pwm == 0 || current.pwm != pwm) {  //停止的一定执行上次的和这次 的不一致也要执行
+      ledcWrite(PWM_A1321, pwm);
+    } else {
       //print("CURRENT pwm = last: %d", pwm );
     }
   }
@@ -199,14 +200,14 @@ void heaterTaskCode(void *pvParameters) {
     //重置判定变量值
     finalPWM = 0;
     //--- 逻辑判断 ---
-    if (IRInTimes == 0 && millis() - current.startTime < 1000UL) {
+    if (hasUsed && millis() - current.startTime < 1000UL) {
       finalPWM = getBoostPWM(current.targetTemp, current.currentTemp);
       current.heateMode = (current.targetTemp - current.currentTemp > pidConfig.THRES_BOOST_FULL) ? FULL : LIMIT;
-     // print("[1]targetTemp :%0.1f ,currentTemp :%0.1f,pwm: %d ", current.targetTemp, current.currentTemp, finalPWM);
+      // print("[1]targetTemp :%0.1f ,currentTemp :%0.1f,pwm: %d ", current.targetTemp, current.currentTemp, finalPWM);
     } else {
       finalPWM = getPIDPWM(current.targetTemp, current.currentTemp);
       current.heateMode = PID;
-    //  print("[2]targetTemp :%0.1f ,currentTemp :%0.1f,pwm: %d ", current.targetTemp, current.currentTemp, finalPWM);
+      //  print("[2]targetTemp :%0.1f ,currentTemp :%0.1f,pwm: %d ", current.targetTemp, current.currentTemp, finalPWM);
     }
     setPWM(finalPWM);
     if (i++ > 5) {

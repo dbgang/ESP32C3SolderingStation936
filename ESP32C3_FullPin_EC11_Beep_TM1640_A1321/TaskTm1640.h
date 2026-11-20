@@ -248,16 +248,28 @@ inline void clear(uint8_t startAddr, int count = 1) {
   }
 }
 extern SaveData saved;
-extern String sub_str;  
+extern String sub_str;
 extern String main_str;
 //正常模式下 设置显示内容
 inline void settingDisplayByNormalMode() {
-  // 非设置模式下的 显示当前温度信息
-  if (!isNeedSave && curSettingMode == NORMAL) {
-    // 1. 设置主屏显示数字
-    setDisplay(0, String(current.currentTemp).c_str(), DIS_NORMAL);
-    // // 2. 设置副屏显示字符 
-    setDisplay(1, (saved.isCoreTemp ? "C" : "H" + String(current.targetTemp, 3)).c_str(), DIS_NORMAL);
+  // 非设置模式下的 显示当前温度信息  设置模式  设置时 自动显示 
+  if (!isNeedSave && curSettingMode == NORMAL) { 
+    //
+    if (current.workMode == WELDING) {
+      // 1. 设置主屏显示数字
+      setDisplay(0, String(current.currentTemp).c_str(), DIS_NORMAL);
+      // 2. 设置副屏显示字符
+      setDisplay(1, (saved.isCoreTemp ? "C" : "H" + String(current.targetTemp, 3)).c_str(), DIS_NORMAL);
+    }
+    if (current.workMode == LOWTEMP) {
+      // 1. 设置主屏显示数字
+      setDisplay(0, String(current.currentTemp).c_str(), DIS_NORMAL);
+      setDisplay(1, ("L" + String(current.targetTemp, 3)).c_str(), DIS_NORMAL);
+    }
+    if (current.workMode == SLEEP) {  // 1. 设置主屏显示数字
+      setDisplay(0, String(current.currentTemp).c_str(), DIS_NORMAL);
+      setDisplay(1, "----", DIS_NORMAL);
+    }
   }
   // 彩灯逻辑
   if (current.ErrCode != "") {
@@ -267,7 +279,7 @@ inline void settingDisplayByNormalMode() {
     setDisplay(1, current.ErrCode.c_str(), DIS_FLASH);
   } else {
     if (current.workMode == WELDING) {  //分段 处理
-      if (current.heateMode == FULL)      // 默认对应 0 全速  红黄
+      if (current.heateMode == FULL)    // 默认对应 0 全速  红黄
       {
         SetColorType(COLOR_RED_YELLOW);
       } else if (current.heateMode == LIMIT)  // 默认对应 1  线性  红蓝
