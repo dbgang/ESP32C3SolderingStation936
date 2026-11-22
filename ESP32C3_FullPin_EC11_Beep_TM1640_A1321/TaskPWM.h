@@ -58,6 +58,7 @@ extern volatile SettingMode curSettingMode;
 extern volatile bool isInserted;         //【外部】是否休眠
 extern volatile unsigned long IRInTime;  //上次操作时间  millis()
 extern volatile bool hasUsed;            //  是否用过
+extern volatile bool hasSetted;            //  是否设置过
 extern String ErrCode;                   //不能 volatile
 extern SaveData saved;
 // --- FreeRTOS 任务句柄 ---
@@ -121,7 +122,7 @@ void getCurrent() {
     current.ErrCode = "adcL";
   } else if (current.currentADC > 40000) {  //451911  653   40000 大约在500度
     current.ErrCode = "adcH";
-  } else if (current.currentTemp - current.targetTemp > 50.0f) {
+  } else if (current.currentTemp - current.targetTemp > 50.0f && !hasSetted) {
     current.ErrCode = "adcO";  //这里 主板问题最先显示
   } else if (current.Temp18B20 > 60.0f) {
     current.ErrCode = "E01";  //这里 主板问题最先显示

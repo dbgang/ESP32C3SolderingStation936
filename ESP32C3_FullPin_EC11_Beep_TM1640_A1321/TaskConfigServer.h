@@ -304,7 +304,7 @@ label {
 
     <div class="chart-footer">
         <span>历史数据：最近 60 秒</span>
-        <span>采样间隔：500ms</span>
+        <span>采样间隔：200ms</span>
     </div>
 
 </div>
@@ -690,8 +690,8 @@ resizeTemperatureChart();
 
 window.addEventListener("resize", resizeTemperatureChart);
 
-// 每 500ms 获取一次数据
-setInterval(updateTemperatureChart, 500);
+// 每 200ms 获取一次数据
+setInterval(updateTemperatureChart, 200);
 
 // 页面加载后立即获取一次
 updateTemperatureChart();

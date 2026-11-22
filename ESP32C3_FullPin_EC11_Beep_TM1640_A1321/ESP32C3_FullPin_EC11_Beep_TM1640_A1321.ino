@@ -46,7 +46,8 @@ volatile unsigned long lastOperTime = 0;       //上次操作时间  millis()
 volatile int beepStatus = 0;
 volatile bool isInserted;             //【IR】是否休眠
 volatile unsigned long IRInTime = 0;  //【IR】 插入时间
-volatile bool hasUsed = false;        // 计数
+volatile bool hasUsed = false;        // 开机后是否使用过
+ volatile bool hasSetted = false;            // 是否设置过 
 float temp_min = 0;
 float temp_max = 600;
 //保存数据
@@ -170,8 +171,9 @@ void changeMainDis(float value, SettingMode mode, DisplayMode* dismode) {
 void handleEC11Event(EC11Event event, float value, SettingMode mode) {
   lastOperTime = millis();
   if (!isNeedSave) {  //设置 开始设置了
-    isNeedSave = true;
-  }
+    isNeedSave = true; 
+  } 
+    hasSetted = true;
   DisplayMode dismode = DIS_FLASH;
   switch (event) {
     case EVENT_CW:
@@ -263,6 +265,9 @@ void setup() {
 WorkMode lastMode = Mode_None;
 
 void loop() {
+  if( current.targetTemp -current.currentTemp >  -2 && current.targetTemp -current.currentTemp < 2 ){
+    hasSetted =false;
+  }
   // systemMonitor.update();
   if (current.ErrCode != "") {
     //  print("A0");
