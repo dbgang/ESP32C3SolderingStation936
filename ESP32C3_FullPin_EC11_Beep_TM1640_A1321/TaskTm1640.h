@@ -38,6 +38,17 @@ Screen myScreens[TM1640_TOTAL_DIGITS] = {
   { 0xC8, 4, DIS_NORMAL },   // 第二个屏幕：从 0xC8 开始，共 4 位，闪烁模式
   { 0xC4, 1, DIS_COLORLED }  //三色led  1位 一定是 DIS_NOMODE 这个的反转在 获取颜色的方法中TM1640ColorLed
 };
+
+
+uint8_t rawBuffer[32] = { 0 };
+int totalItems = 0;
+int strIdx = 0;
+char c;
+uint8_t seg;
+uint8_t myIndex;
+
+
+
 int screenCount = 3;                         // 当前有效屏幕数量
 extern SystemData current;                   //【PWM 记录】当前所有的状态
 extern volatile SettingMode curSettingMode;  //EC 11 设置模式
@@ -99,22 +110,22 @@ void setScreen(int index, uint8_t addr, uint8_t len, DisplayMode mode) {
   // 情况3：index > screenCount 或 index >= TM1640_TOTAL_DIGITS → 忽略（错误索引）
 }
 
-
 // //仅仅处理 数字数码管的闪烁    【具体显示 由 showText  统一处理 】
 void updateFlashMsg() {
   for (int i = 0; i < screenCount; i++) {
     if (myScreens[i].mode == DIS_FLASH) {
       for (int j = 0; j < myScreens[i].digitCount; j++) {
-        uint8_t index = myScreens[i].startAddr - 0xC0 + j;
-        text[index] = ((millis() / flashInterval) % 2 == 0) ? myScreens[i].buffer[j] : 0;
+          myIndex = myScreens[i].startAddr - 0xC0 + j;
+        text[myIndex] = ((millis() / flashInterval) % 2 == 0) ? myScreens[i].buffer[j] : 0;
       }
     }
   }
 }
 
-//设置显示内容仅仅整理内容 【具体显示 由 showText  统一处理 】
-// 1. 如果是彩灯模式 mode != DIS_COLORLED，单独处理
-void setDisplay(int screenIndex, const char *inputStr, DisplayMode mode) {
+
+  //设置显示内容仅仅整理内容 【具体显示 由 showText  统一处理 】
+  // 1. 如果是彩灯模式 mode != DIS_COLORLED，单独处理
+  void  setDisplay(int screenIndex, const char *inputStr, DisplayMode mode) {
   if (mode != DIS_COLORLED) {            //必须非三色LED
     myScreens[screenIndex].mode = mode;  // 更新当前屏幕的显示模式
     // 1. 清空当前屏幕的 buffer
@@ -122,13 +133,13 @@ void setDisplay(int screenIndex, const char *inputStr, DisplayMode mode) {
       myScreens[screenIndex].buffer[i] = 0x00;
     }
     // 2. 解析输入字符串并处理小数点粘连
-    uint8_t rawBuffer[32] = { 0 };
-    int totalItems = 0;
-    int strIdx = 0;
+    rawBuffer[32] = { 0 };
+    totalItems = 0;
+    strIdx = 0;
 
     while (inputStr[strIdx] != '\0' && totalItems < 32) {
-      char c = inputStr[strIdx];
-      uint8_t seg = charToSegment(c);
+      c = inputStr[strIdx];
+      seg = charToSegment(c);
 
       // 如果后面跟了小数点，将当前段码最高位加上小数点标志 (0x80)
       if (inputStr[strIdx + 1] == '.') {
@@ -144,8 +155,8 @@ void setDisplay(int screenIndex, const char *inputStr, DisplayMode mode) {
       if (i < totalItems) {
         myScreens[screenIndex].buffer[i] = rawBuffer[i];
       }
-      uint8_t index = myScreens[screenIndex].startAddr - 0xC0 + i;
-      text[index] = myScreens[screenIndex].buffer[i];
+        myIndex = myScreens[screenIndex].startAddr - 0xC0 + i;
+      text[myIndex] = myScreens[screenIndex].buffer[i];
     }
   }
 }
@@ -201,12 +212,12 @@ inline void sendTM1640(uint8_t addr, uint8_t data) {
 void updateLedColor() {
 
   for (int j = 0; j < myScreens[2].digitCount; j++) {
-    int index = myScreens[2].startAddr - 0xC0 + j;
+      myIndex = myScreens[2].startAddr - 0xC0 + j;
     // 防止越界写入
-    if (index < 0 || index >= TM1640_TOTAL_DIGITS) {
+    if (myIndex < 0 || myIndex >= TM1640_TOTAL_DIGITS) {
       continue;
     }
-    text[index] = getColor();
+    text[myIndex] = getColor();
   }
 }
 // ----------------------------------------
@@ -252,8 +263,8 @@ extern String sub_str;
 extern String main_str;
 //正常模式下 设置显示内容
 inline void settingDisplayByNormalMode() {
-  // 非设置模式下的 显示当前温度信息  设置模式  设置时 自动显示 
-  if (!isNeedSave && curSettingMode == NORMAL) { 
+  // 非设置模式下的 显示当前温度信息  设置模式  设置时 自动显示
+  if (!isNeedSave && curSettingMode == NORMAL) {
     //
     if (current.workMode == WELDING) {
       // 1. 设置主屏显示数字
@@ -277,6 +288,7 @@ inline void settingDisplayByNormalMode() {
     // setDisplay(0, "RED", DIS_COLORLED);
     SetColorType(COLOR_RED_NONE);
     setDisplay(1, current.ErrCode.c_str(), DIS_FLASH);
+    print("【ErrCode】:%s", current.ErrCode.c_str());
   } else {
     if (current.workMode == WELDING) {  //分段 处理
       if (current.heateMode == FULL)    // 默认对应 0 全速  红黄
@@ -347,7 +359,7 @@ inline void init_TM1640(const char *taskName = "displayTask", UBaseType_t priori
   xTaskCreate(
     singleDisplayTaskCode,
     taskName,
-    2048,
+    4096,
     NULL,
     priority,
     NULL);

@@ -57,7 +57,7 @@ PIDConfig pidConfig;  //系统设置参数
 //【mqtt wifi  参数设置 】
 // 实例化管理器
 MqttManager mqttManager;
-String funcName = "MQTT";
+String funcName = "SolderingStation936";
 // 定义配置参数
 const int RESET_PIN = 0;                    // 比如用 GPIO 0 (Boot按键) 作为重置配网引脚
 const char* MQTT_SERVER = "192.168.1.251";  // MQTT 服务器 IP

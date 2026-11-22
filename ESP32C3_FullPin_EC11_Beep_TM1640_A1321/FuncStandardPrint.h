@@ -100,7 +100,7 @@ inline void printTask(String taskName, String value, String func = "") {
 
 //【各个功能的核心扩展变量 】 
 void printSystemLog(const SystemData &data) { 
-  print("{  \"time\": %d,  \"currentADC\": %.1f,  \"currentTemp\": %.1f,CURRENT pwm: %d} ", millis(), data.currentADC, data.currentTemp,data.pwm);  
+  print("{  \"time\": %lu,  \"currentADC\": %.1f,  \"currentTemp\": %.1f,\"targetTemp\": %.1f, \"PWM\": %lu} ", millis(), data.currentADC, data.currentTemp, data.targetTemp,data.pwm);  
   
   // print("{\n"
   //       "  \"time\": %lu,\n"

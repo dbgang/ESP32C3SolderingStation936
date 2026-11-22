@@ -25,7 +25,7 @@
 #define PWM_A1321 6  // 936加热 引flag
 
 const int FREQ = 25000;                    // 25kHz 高频，无啸叫静音模式 [1]
-const int RESOLUTION = 8;                  // 12位分辨率（0~4095），这是25kHz下的硬件极限 [1]
+const int RESOLUTION = 8;                  //这里用 8 位   12位分辨率（0~4095），是25kHz下的硬件极限 [1]
 const unsigned long sleepTime = 300000UL;  // 休眠时间
 // --- 全局变量与参数定义 ---
 
@@ -42,11 +42,13 @@ float lastError = 0.0f;  // 上一次误差
 // --- 3. PWM 输出限幅 ---
 int PWM_MAX_OUTPUT = 255;      // 255;              // 最大 PWM 输出值
 const int PWM_MIN_OUTPUT = 0;  // 最小 PWM 输出值
-const int PWM_APPROACH_MIN_VAL = (int)(PWM_MAX_OUTPUT * 0.72f);
-;  // 线性减速区间的起始最低功率  最大功率的72%   原始值185
+const int PWM_APPROACH_MIN_VAL = (int)(PWM_MAX_OUTPUT *1);  // 线性减速区间的起始最低功率  最大功率的72%   原始值185  升温慢 卡在低1度
+ 
 // --- 4. 运行参数 ---
 const unsigned long PID_CYCLE_MS = 50;  // PID 计算周期 (50ms)
-
+//  冷态加热最高时长 全功率最长运行 30 秒
+const unsigned long MaxPowerKeepTime = 30000;  // 满功率最长持续安全时间 (30秒)
+unsigned long MaxPowerBeginTime = 0;
 
 const int SAFETY_MONITOR_PWM = PWM_APPROACH_MIN_VAL;
 const float SAFETY_MIN_2SEC_RISE = 4.0;
@@ -55,7 +57,7 @@ extern SystemData current;                 //【PWM 记录】当前所有的状�
 extern volatile SettingMode curSettingMode;
 extern volatile bool isInserted;         //【外部】是否休眠
 extern volatile unsigned long IRInTime;  //上次操作时间  millis()
-extern volatile bool  hasUsed;          //  是否用过
+extern volatile bool hasUsed;            //  是否用过
 extern String ErrCode;                   //不能 volatile
 extern SaveData saved;
 // --- FreeRTOS 任务句柄 ---
@@ -72,25 +74,20 @@ void getCurrent() {
   current.InSertTime = IRInTime;    //插入sh
   current.IRKeepInTime = millis() - current.InSertTime;
   current.Temp18B20 = get18B20Temp();
-  // 【1.1】主板温度报错及错误赋值
-  if (current.Temp18B20 > 60.0f) {
-    current.ErrCode = "E01";  //这里 主板问题最先显示
-  } else {
-    current.ErrCode = ErrCode;
-  }
+
   //【1.2】系统模式
   current.settingMode = curSettingMode;
   //【1.3】工作模式  // 当前没有睡眠请求，始终处于焊接模式
   //非第一次 切插入
-  if ( isInserted && hasUsed ) {
+  if (isInserted && hasUsed) {
     // 已经进入睡眠流程，根据红外保持时间切换低温保持和完全休眠
     if (current.IRKeepInTime < sleepTime) {
-      current.workMode = LOWTEMP; 
+      current.workMode = LOWTEMP;
     } else {
       current.workMode = SLEEP;
     }
   } else {  //第一次 或 未插入
-      current.workMode = WELDING;  
+    current.workMode = WELDING;
   }
   // current.heateMode = FULL;      //加热模式 PWM Control 中赋值
   //【1.3】目标温度设定
@@ -117,8 +114,20 @@ void getCurrent() {
 
   // 【3.1】当前数据  注意 current.currentADC, current.Temp18B20 调用的getCurrentADC() 和  get18B20Temp();  只能调用一次
   current.currentADC = getCurrentADC();
-  current.currentTemp = ADC2Temp(current.currentADC, current.Temp18B20, tempParams);
+  current.currentTemp = ADC2TempV2(current.currentADC, current.Temp18B20, tempParams);
   current.currentVolt = getCurrentVoltage(currentADC);
+  // 【1.1】主板温度报错及错误赋值
+  if (current.currentADC < 500) {
+    current.ErrCode = "adcL";
+  } else if (current.currentADC > 40000) {  //451911  653   40000 大约在500度
+    current.ErrCode = "adcH";
+  } else if (current.currentTemp - current.targetTemp > 50.0f) {
+    current.ErrCode = "adcO";  //这里 主板问题最先显示
+  } else if (current.Temp18B20 > 60.0f) {
+    current.ErrCode = "E01";  //这里 主板问题最先显示
+  } else {
+    current.ErrCode = ErrCode;
+  }
   //【4】是否需要加热
   if (current.ErrCode == "" && current.targetTemp > current.currentTemp) {
     current.StopHeate = false;
@@ -136,9 +145,18 @@ void setPWM(int pwm) {
   setPwmTime = millis();    // 記錄當前時間（毫秒）  micros() 这个是微 秒
   if (current.StopHeate) {  // 最高优先级  最高优先级
     ledcWrite(PWM_A1321, 0);
+    //current.pwm = 0;
   } else {
+    if (current.pwm == pwm && pwm == 255 && millis() - MaxPowerBeginTime > MaxPowerKeepTime)  //热失控  全功率255加热时间过长
+    {
+      current.ErrCode = "E255";
+      ledcWrite(PWM_A1321, 0);
+    }
     if (current.pwm == 0 || current.pwm != pwm) {  //停止的一定执行上次的和这次 的不一致也要执行
+      MaxPowerBeginTime = millis();                // PWM 变更则等级 时间
       ledcWrite(PWM_A1321, pwm);
+      //  print("PWM:%lu", current.pwm);
+      //  current.pwm = pwm;
     } else {
       //print("CURRENT pwm = last: %d", pwm );
     }

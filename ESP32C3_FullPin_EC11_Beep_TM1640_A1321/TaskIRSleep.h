@@ -11,11 +11,17 @@
 // LOW  = 光耦导通
 // HIGH = 光耦截止
 #define IR_TRIGGER_LEVEL LOW
-
+//【实时状态相关】
 extern volatile int beepStatus;  //0 切换模式  1 到达温度 或到达第二模式
 extern volatile bool isInserted;
 extern volatile unsigned long IRInTime;  //上次操作时间  millis()
 extern volatile bool hasUsed;            // 插入次数
+
+//【MQTT 相关  】
+extern MqttManager mqttManager;
+String FanClientId = "AutoFan-48A86E936314";
+String PUB_TOPIC = "device/" + FanClientId + "/Forward";  // Publish 订阅主题（若不想订阅可传 nullptr）
+static char opermsg[256];  // 在栈上分配固定大小的缓冲区（或改为 static）
 // 任务句柄
 TaskHandle_t IrSensorTaskHandle = NULL;
 
@@ -55,12 +61,16 @@ void irSensorTaskCode(void* pvParameters) {
         isInserted = false;
         hasUsed = true;
         print("[IR] 烙铁取下 - Infrared beam restored");
+        snprintf(opermsg, sizeof(opermsg), "Start");
+        mqttManager.publish(opermsg, PUB_TOPIC);
         // TODO：在这里执行唤醒或禁止休眠操作
       } else {
         beepStatus = 0;
         isInserted = true;
         IRInTime = millis();
         print("[IR] 烙铁放回 - Infrared beam interrupted");
+        snprintf(opermsg, sizeof(opermsg), "Stop" );
+        mqttManager.publish(opermsg, PUB_TOPIC);
         // TODO：在这里执行允许休眠操作
       }
     }
