@@ -58,38 +58,44 @@ extern volatile bool isNeedSave;
 // ----------------------------------------
 static const uint8_t DIGIT_MAP[10] = { 0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f };
 
-inline uint8_t charToSegment(char c) {
+ inline uint8_t charToSegment(char c) {
   if (c >= '0' && c <= '9') return DIGIT_MAP[c - '0'];
   switch (c) {
-    case 'A': return 0x77; ;
+    case 'A':
+    case 'a': return 0x77;  // a+b+c+e+f+g
     case 'B':
-    case 'b': return 0x7C;
-    case 'C':
-    case '[': return 0x39;
-    case 'c': return 0x58;
+    case 'b': return 0x7C;  // c+d+e+f+g (小写 b)
+    case 'C': return 0x39;  // a+d+e+f (大写 C)
+    case 'c': return 0x58;  // d+e+g (小写 c)
+    case '[': return 0x39;  // a+d+e+f (左方括号)
+    case ']': return 0x0F;  // a+b+c+d (右方括号)
     case 'D':
-    case 'd': return 0x5E;
+    case 'd': return 0x5E;  // b+c+d+e+g (小写 d)
     case 'E':
-    case 'e': return 0x79;
-    case 'F': return 0x71;
+    case 'e': return 0x79;  // a+d+e+f+g
+    case 'F': return 0x71;  // a+e+f+g
     case 'U':
-    case 'u': return 0x3E;
-
+    case 'u': return 0x3E;  // b+c+d+e+f
     case 'R':
-    case 'r': return 0x50;
-    case ']': return 0x0F;
+    case 'r': return 0x50;  // e+g (小写 r)
     case 'P':
-    case 'p': return 0x73;
-    case 'H': return 0x76;
-    case 'L': return 0x38;
-    case 'S': return 0x6D;
-    case '-': return 0x40;
-    case '=': return 0x48;
-    case 'o': return 0x5C;
+    case 'p': return 0x73;  // a+b+e+f+g
+    case 'H': return 0x76;  // b+c+e+f+g
+    case 'L': return 0x38;  // d+e+f
+    case 'S': return 0x6D;  // a+c+d+f+g
+    case '^': return 0x01;  // a
+    case '-': return 0x40;  // g
+    case '_': return 0x08;  // d
+    case '=': return 0x48;  // d+g
+    case 'O': return 0x3F;  // a+b+c+d+e+f (大写 O)
+    case 'o': return 0x5C;  // c+d+e+g (小写 o)
+    case 'N': return 0x37;  // a+b+c+e+f
+    case 'n': return 0x54;  // c+e+g (小写 n)
+    case 't': return 0x78;  // d+e+f+g (小写 t)
+    case 'y': return 0x6E;  // b+c+d+f+g (小写 y)
     default: return 0x00;
   }
 }
-
 // ----------------------------------------
 // 【数码管设置】
 // ----------------------------------------
@@ -115,7 +121,7 @@ void updateFlashMsg() {
   for (int i = 0; i < screenCount; i++) {
     if (myScreens[i].mode == DIS_FLASH) {
       for (int j = 0; j < myScreens[i].digitCount; j++) {
-          myIndex = myScreens[i].startAddr - 0xC0 + j;
+        myIndex = myScreens[i].startAddr - 0xC0 + j;
         text[myIndex] = ((millis() / flashInterval) % 2 == 0) ? myScreens[i].buffer[j] : 0;
       }
     }
@@ -123,9 +129,9 @@ void updateFlashMsg() {
 }
 
 
-  //设置显示内容仅仅整理内容 【具体显示 由 showText  统一处理 】
-  // 1. 如果是彩灯模式 mode != DIS_COLORLED，单独处理
-  void  setDisplay(int screenIndex, const char *inputStr, DisplayMode mode) {
+//设置显示内容仅仅整理内容 【具体显示 由 showText  统一处理 】
+// 1. 如果是彩灯模式 mode != DIS_COLORLED，单独处理
+void setDisplay(int screenIndex, const char *inputStr, DisplayMode mode) {
   if (mode != DIS_COLORLED) {            //必须非三色LED
     myScreens[screenIndex].mode = mode;  // 更新当前屏幕的显示模式
     // 1. 清空当前屏幕的 buffer
@@ -155,7 +161,7 @@ void updateFlashMsg() {
       if (i < totalItems) {
         myScreens[screenIndex].buffer[i] = rawBuffer[i];
       }
-        myIndex = myScreens[screenIndex].startAddr - 0xC0 + i;
+      myIndex = myScreens[screenIndex].startAddr - 0xC0 + i;
       text[myIndex] = myScreens[screenIndex].buffer[i];
     }
   }
@@ -212,7 +218,7 @@ inline void sendTM1640(uint8_t addr, uint8_t data) {
 void updateLedColor() {
 
   for (int j = 0; j < myScreens[2].digitCount; j++) {
-      myIndex = myScreens[2].startAddr - 0xC0 + j;
+    myIndex = myScreens[2].startAddr - 0xC0 + j;
     // 防止越界写入
     if (myIndex < 0 || myIndex >= TM1640_TOTAL_DIGITS) {
       continue;

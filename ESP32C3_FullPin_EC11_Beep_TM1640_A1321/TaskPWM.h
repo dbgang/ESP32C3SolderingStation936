@@ -40,10 +40,10 @@ float errorSum = 0.0f;   // 积分累计值
 float lastError = 0.0f;  // 上一次误差
 
 // --- 3. PWM 输出限幅 ---
-int PWM_MAX_OUTPUT = 255;      // 255;              // 最大 PWM 输出值
-const int PWM_MIN_OUTPUT = 0;  // 最小 PWM 输出值
-const int PWM_APPROACH_MIN_VAL = (int)(PWM_MAX_OUTPUT *1);  // 线性减速区间的起始最低功率  最大功率的72%   原始值185  升温慢 卡在低1度
- 
+int PWM_MAX_OUTPUT = 255;                                    // 255;              // 最大 PWM 输出值
+const int PWM_MIN_OUTPUT = 0;                                // 最小 PWM 输出值
+const int PWM_APPROACH_MIN_VAL = (int)(PWM_MAX_OUTPUT * 1);  // 线性减速区间的起始最低功率  最大功率的72%   原始值185  升温慢 卡在低1度
+
 // --- 4. 运行参数 ---
 const unsigned long PID_CYCLE_MS = 50;  // PID 计算周期 (50ms)
 //  冷态加热最高时长 全功率最长运行 30 秒
@@ -58,7 +58,7 @@ extern volatile SettingMode curSettingMode;
 extern volatile bool isInserted;         //【外部】是否休眠
 extern volatile unsigned long IRInTime;  //上次操作时间  millis()
 extern volatile bool hasUsed;            //  是否用过
-extern volatile bool hasSetted;            //  是否设置过
+extern volatile bool hasSetted;          //  是否设置过
 extern String ErrCode;                   //不能 volatile
 extern SaveData saved;
 // --- FreeRTOS 任务句柄 ---
@@ -80,11 +80,12 @@ void getCurrent() {
   current.settingMode = curSettingMode;
   //【1.3】工作模式  // 当前没有睡眠请求，始终处于焊接模式
   //非第一次 切插入
-  if (isInserted && hasUsed) {
+  if (isInserted && hasUsed) { 
     // 已经进入睡眠流程，根据红外保持时间切换低温保持和完全休眠
-    if (current.IRKeepInTime < sleepTime) {
+    if (current.IRKeepInTime < sleepTime) { 
       current.workMode = LOWTEMP;
-    } else {
+    } else { 
+      hasSetted = true;
       current.workMode = SLEEP;
     }
   } else {  //第一次 或 未插入
@@ -122,7 +123,7 @@ void getCurrent() {
     current.ErrCode = "adcL";
   } else if (current.currentADC > 40000) {  //451911  653   40000 大约在500度
     current.ErrCode = "adcH";
-  } else if (current.currentTemp - current.targetTemp > 50.0f && !hasSetted) {
+  } else if (!hasSetted && current.currentTemp - current.targetTemp > 50.0f) { //注意这里hasSetted排除 EC11、红外对射 、延时休眠
     current.ErrCode = "adcO";  //这里 主板问题最先显示
   } else if (current.Temp18B20 > 60.0f) {
     current.ErrCode = "E01";  //这里 主板问题最先显示
